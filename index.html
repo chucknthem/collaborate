@@ -3,9 +3,105 @@
 <html>
 <head>
     <title>Client test</title>
-    <script href="http://localhost/socket.io/socket.io.js"></script>
+    <script type="text/javascript" src="http://localhost/socket.io/socket.io.js"></script>
+
+    <script type="text/javascript">
+        function $(id) {
+            return document.getElementById(id);
+        }
+        function $prepend(parent, node) {
+            parent.appendChild(node, parent.firstChild);
+        }
+
+        function setCookie(name, value, days){
+            var expireDate = new Date();
+            expireDate.setTime(expireDate.getTime() + days*24*60*60*1000);
+            var value = escape(value) + ((expireDate==null) ? "" : "; expires="+expireDate.toUTCString());
+            document.cookie = name + "=" + value;
+        }
+
+        function getCookie(name) {
+            var cookies = document.cookie.split(";");
+            for (var i = 0; i < cookies.length; i++) {
+                var cookie = cookies[i].split("=");
+                var key = cookie[0];
+                var value = cookie[1];
+                key = key.replace(/^\s+|\s+$/g, "");
+
+                if (key == name) {
+                    return unescape(cookie[1]);
+                }
+            }
+            return null;
+        }
+
+        function deleteCookie(name) {
+            setCookie(name, "", -1);
+        }
+
+        function getHashValue(name) {
+            if (location.hash) {
+                var values = location.hash.slice(1, location.hash.length).split("&");
+                for (var i = 0; i < values.length; i++) {
+                    var value = values[i].split("=");
+                    if (value[0] === name) {
+                        console.log(name + " = " + value[1]);
+                        return value[1];
+                    }
+                }
+            }
+            return null;
+        }
+
+
+        var chat = io.connect("http://localhost/chat");
+
+        chat.on("whoareyou?", function() {
+            // new sessions are started from the bsocial hash param.
+            var sid = getHashValue("bsocial");
+            if (!sid) {
+                sid = getCookie("bsocial_sid");
+            }
+            var cid = getCookie("bsocial_cid");
+
+            console.log(sid + " " + cid);
+            chat.emit("iam", {sid: sid, cid: cid});
+        });
+
+        chat.on("youare", function(data) {
+            setCookie("bsocial_sid", data.sid);
+            setCookie("bsocial_cid", data.cid);
+        });
+
+        chat.on("message", function(data) {
+            console.log("message: " + data.message);
+            var span = document.createElement("span");
+            span.innerHTML = "<b>" + data.cid + ":</b>" + escape(data.message);
+            var br = document.createElement("br");
+            $prepend($("messages"), br);
+            $prepend($("messages"), span);
+        });
+
+    </script>
 </head>
 <body>
+    <div id="messages">
 
+    </div>
+    <form id="chat_form">
+        <input id="chat_text" type="text" />
+        <input type="submit" value="send" />
+    </form>
+
+    <script type="text/javascript">
+        var messageEl = $("chat_text");
+        $("chat_form").onsubmit = function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            chat.emit("message", messageEl.value);
+            messageEl.value = "";
+            return false;
+        }
+    </script>
 </body>
 </html>
