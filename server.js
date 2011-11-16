@@ -1,21 +1,14 @@
-var app = require("express").createServer(handler),
-    io = require("socket.io").listen(app),
+var express = require("express"),
+    io = require("socket.io"),
     fs = require('fs');
 
+app = express.createServer();
+io = io.listen(app);
+
+app.configure(function() {                          
+    app.use("/", express.static(__dirname + "/static"));
+});
 app.listen(80);
-
-function handler (req, res) {
-  fs.readFile(__dirname + "/index.html",
-  function (err, data) {
-    if (err) {
-      res.writeHead(500);
-      return res.end("Error loading index.html");
-    }
-
-    res.writeHead(200);
-    res.end(data);
-  });
-}
 
 var CollabSession = function(id, leader) {
     this.id = id;
@@ -72,19 +65,14 @@ collab.prototype.addNewClient = function(session) {
 
 var bsocial = new collab();
 
-io.sockets.on('connection', function (socket) {
-  socket.emit('news', { hello: 'world' });
-  socket.on('my other event', function (data) {
-    console.log(data);
-  });
-});
 
-var chat = io.
-    of("/chat").
+var server = io.
+    of("/bsocial").
     on("connection", function(socket) {
         var session = null;
         var client = null;
         socket.emit("whoareyou?");
+        
         socket.on("iam", function(data) {
             session = bsocial.getSession(data.sid);
             var isNew = false;
@@ -108,13 +96,20 @@ var chat = io.
                 socket.emit("youare", {sid: session.id, cid: client.id});
             }
         });
+
         socket.on("message", function(message) {
-            if (!session) {
-                console.log("session not set!");
+            if (session && client) {
+                socket.broadcast.to(session.id).emit("message", {cid: client.id, message: message});
             }
-            if (!client) {
-                console.log("client not set!");
+        });
+
+        socket.on("mousemove", function(data) {
+            if (session && client) {
+                socket.broadcast.to(session.id).emit("mousemove", {
+                    cid: client.id,
+                    x: data.x,
+                    y: data.y
+                });
             }
-            socket.broadcast.to(session.id).emit("message", {cid: client.id, message: message});
         });
     });

@@ -1,0 +1,174 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+        "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+    <title>Client test</title>
+    <script type="text/javascript" src="/socket.io/socket.io.js"></script>
+    <script type="text/javascript" src="/jquery-1.7.js"></script>
+    <style type="text/css">
+        .pointer {
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="messages">
+
+    </div>
+    <form id="chat_form">
+        <input id="chat_text" type="text" />
+        <input type="submit" value="send" />
+    </form>
+
+
+
+    <script type="text/javascript">
+        // ============ Helpers =============
+        function $prepend(parent, node) {
+            parent.appendChild(node, parent.firstChild);
+        }
+
+        function setCookie(name, value, days){
+            var expireDate = new Date();
+            expireDate.setTime(expireDate.getTime() + days * 24 * 60 * 60 * 1000);
+            var value = escape(value) + ((expireDate==null) ? "" : "; expires="+expireDate.toUTCString());
+            document.cookie = name + "=" + value;
+        }
+
+        function getCookie(name) {
+            var cookies = document.cookie.split(";");
+            for (var i = 0; i < cookies.length; i++) {
+                var cookie = cookies[i].split("=");
+                var key = cookie[0];
+                var value = cookie[1];
+                key = key.replace(/^\s+|\s+$/g, "");
+
+                if (key == name) {
+                    return unescape(cookie[1]);
+                }
+            }
+            return null;
+        }
+
+        function deleteCookie(name) {
+            setCookie(name, "", -1);
+        }
+
+        function getHashValue(name) {
+            if (location.hash) {
+                var values = location.hash.slice(1, location.hash.length).split("&");
+                for (var i = 0; i < values.length; i++) {
+                    var value = values[i].split("=");
+                    if (value[0] === name) {
+                        return value[1];
+                    }
+                }
+            }
+            return null;
+        }
+
+        // Get position of the mouse relative to page left.
+        function getMouseX(event) {
+            if (event.pageX) return event.pageX;
+            if (event.clientX) {
+                return event.clientX + (document.documentElement.scrollLeft ?
+                   document.documentElement.scrollLeft :
+                   document.body.scrollLeft);
+            }
+            return null;
+        }
+
+        // Get position of the mouse relative to page top.
+        function getMouseY(event) {
+            if (event.pageY) return event.pageY;
+            if (event.clientY) {
+                return event.clientY + (document.documentElement.scrollTop ?
+                        document.documentElement.scrollTop :
+                        document.body.scrollTop);
+            }
+            return null
+        }
+
+        // =========== Methods =================
+        function addMessage(data) {
+            var span = document.createElement("span");
+            span.innerHTML = "<b>" + data.cid + ":</b>" + escape(data.message);
+            var br = document.createElement("br");
+            $prepend($("#messages")[0], br);
+            $prepend($("#messages")[0], span);
+        }
+
+
+        var client = io.connect("/bsocial");
+
+        client.on("whoareyou?", function() {
+            // new sessions are started from the bsocial hash param.
+            var sid = getHashValue("bsocial");
+            if (!sid) {
+                sid = getCookie("bsocial_sid");
+            }
+            var cid = getCookie("bsocial_cid");
+
+            client.emit("iam", {sid: sid, cid: cid});
+        });
+
+        client.on("youare", function(data) {
+            setCookie("bsocial_sid", data.sid);
+            setCookie("bsocial_cid", data.cid);
+        });
+
+        client.on("message", addMessage);
+
+        var pointers = {};
+        var pTemplate ='<img src="pointer.gif" /><span class="name"></span>';
+        
+        client.on("mousemove", function(data) {
+            var pointer = pointers[data.cid];
+            if (!pointer) {
+                pointer = document.createElement("div");
+                pointer.setAttribute("class", "pointer");
+                pointer.innerHTML = pTemplate.replace(/#/, data.cid);
+                pointer.childNodes[1].innerHTML = data.cid;
+                document.body.appendChild(pointer);
+                pointers[data.cid] = pointer;
+            }
+            
+            $(pointer).animate({
+                left: data.x,
+                top: data.y
+            }, 5);
+        });
+
+
+        $("#chat_form").submit(function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            var messageEl = $("#chat_text")[0];
+            client.emit("message", messageEl.value);
+            addMessage({cid: "me", message: messageEl.value});
+            messageEl.value = "";
+            return false;
+        });
+
+        document.onmousemove = function(event) {
+            var x = getMouseX(event);
+            var y = getMouseY(event);
+            
+            var sid = getHashValue("bsocial");
+            if (!sid) {
+                sid = getCookie("bsocial_sid");
+            }
+            var cid = getCookie("bsocial_cid");
+        
+            client.emit("mousemove", {
+                sid: sid,
+                cid: cid,
+                x: x,
+                y: y
+            });
+        }
+    </script>
+</body>
+</html>
